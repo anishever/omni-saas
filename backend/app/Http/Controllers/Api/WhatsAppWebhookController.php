@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
+use App\Services\WhatsApp\WhatsAppWebhookService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class WhatsAppWebhookController
+class WhatsAppWebhookController extends Controller
 {
     public function verify(Request $request): mixed
     {
@@ -16,12 +18,10 @@ class WhatsAppWebhookController
         return response($request->query('hub_challenge'), 200);
     }
 
-    public function receive(Request $request): JsonResponse
+    public function receive(Request $request, WhatsAppWebhookService $service): JsonResponse
     {
-        // Webhook signature verification and event normalization belong here.
-        // Persisting the normalized event will be handled by the channel/message service.
-        logger()->info('WhatsApp webhook received', ['payload' => $request->all()]);
+        $stored = $service->handle($request->all());
 
-        return response()->json(['received' => true]);
+        return response()->json(['received' => true, 'stored' => $stored]);
     }
 }
