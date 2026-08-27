@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\ConversationReplyController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\WhatsAppWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,6 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('contacts', ContactController::class);
         Route::get('/conversations', [ConversationController::class, 'index']);
         Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
-        Route::post('/conversations/{conversation}/reply', [ConversationController::class, 'reply']);
+        Route::post('/conversations/{conversation}/reply', ConversationReplyController::class);
     });
 });
