@@ -7,6 +7,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable
 {
@@ -21,8 +22,12 @@ class User extends Authenticatable
         return ['email_verified_at' => 'datetime', 'password' => 'hashed'];
     }
 
-    public function tenant(): BelongsTo
+    public function tenant(): BelongsTo { return $this->belongsTo(Tenant::class); }
+
+    public function roles(): BelongsToMany { return $this->belongsToMany(Role::class); }
+
+    public function hasPermission(string $permission): bool
     {
-        return $this->belongsTo(Tenant::class);
+        return $this->roles()->whereHas('permissions', fn ($q) => $q->where('name', $permission))->exists();
     }
 }
