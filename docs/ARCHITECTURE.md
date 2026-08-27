@@ -7,12 +7,13 @@ AI-powered omnichannel marketing, automation, CRM, and customer conversation Saa
 ## Stack
 
 - Frontend: React + TypeScript + Vite + Tailwind CSS
-- Backend: Laravel + PHP
-- Database: PostgreSQL
+- Backend: Laravel 12 + PHP 8.3+
+- Primary database: MySQL 8.0+
 - Cache/queues: Redis
-- Realtime: WebSockets
+- Realtime: Laravel Reverb / WebSockets
 - Storage: S3-compatible object storage
-- Vector search: PostgreSQL + pgvector
+- Vector search: Qdrant
+- Authentication: Laravel Sanctum
 
 ## Core principle
 
@@ -46,7 +47,7 @@ Every tenant-owned resource is scoped by `tenant_id`. Requests resolve the authe
 2. Contacts, tags, custom fields, leads
 3. WhatsApp Cloud API and webhooks
 4. Unified inbox and realtime messaging
-5. AI agents and knowledge base
+5. AI agents and knowledge base using Qdrant
 6. Campaigns and segmentation
 7. Automation builder and execution engine
 8. Billing, usage, analytics, and Super Admin
