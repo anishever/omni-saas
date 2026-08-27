@@ -1,15 +1,21 @@
 services:
-  postgres:
-    image: postgres:16-alpine
+  mysql:
+    image: mysql:8.4
     restart: unless-stopped
     environment:
-      POSTGRES_DB: omni_saas
-      POSTGRES_USER: omni
-      POSTGRES_PASSWORD: change-me
+      MYSQL_DATABASE: omni_saas
+      MYSQL_USER: omni
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root_secret
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_secret"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7-alpine
@@ -20,5 +26,5 @@ services:
       - redis_data:/data
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:
