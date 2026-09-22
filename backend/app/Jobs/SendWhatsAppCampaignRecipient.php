@@ -56,9 +56,6 @@ class SendWhatsAppCampaignRecipient implements ShouldQueue
                 $recipient->update(['status' => 'sent', 'external_id' => $wamid, 'sent_at' => now(), 'error' => null, 'message_id' => $message->id]);
                 $conversation->update(['last_message_at' => now()]);
             });
-        } catch (Throwable $e) {
-            $recipient->update(['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 60000)]);
-            throw $e;
         } finally {
             $this->refreshCounts($campaign->id);
         }
