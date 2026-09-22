@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Models\CampaignRecipient;
+use App\Models\Conversation;
+use App\Models\Message;
 use App\Services\Channels\WhatsAppCloudService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,7 +17,6 @@ use Throwable;
 class SendWhatsAppCampaignRecipient implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
-
     public int $tries = 3;
     public array $backoff = [30, 120, 300];
 
@@ -25,7 +26,6 @@ class SendWhatsAppCampaignRecipient implements ShouldQueue
     {
         $recipient = CampaignRecipient::with(['campaign.connection', 'campaign.template', 'contact'])->find($this->recipientId);
         if (! $recipient || $recipient->status !== 'queued') return;
-
         $campaign = $recipient->campaign;
         $connection = $campaign->connection;
         $template = $campaign->template;
@@ -38,32 +38,23 @@ class SendWhatsAppCampaignRecipient implements ShouldQueue
         }
 
         try {
-            $response = $whatsapp->sendTemplate(
-                $connection->external_id,
-                $connection->access_token,
-                $contact->phone,
-                $template->name,
-                $template->language,
-                $campaign->settings['template_components'] ?? []
-            );
+            $response = $whatsapp->sendTemplate($connection->external_id, $connection->access_token, $contact->phone, $template->name, $template->language, $campaign->settings['template_components'] ?? []);
             $wamid = data_get($response, 'messages.0.id');
             if (! $wamid) throw new \RuntimeException('WhatsApp response did not include a message ID.');
 
-            DB::transaction(function () use ($recipient, $campaign, $wamid, $response) {
-                $recipient->update(['status' => 'sent', 'external_id' => $wamid, 'sent_at' => now(), 'error' => null]);
-                $message = \App\Models\Message::create([
-                    'tenant_id' => $campaign->tenant_id,
-                    'conversation_id' => \App\Models\Conversation::query()->where('tenant_id', $campaign->tenant_id)->where('contact_id', $recipient->contact_id)->where('channel', 'whatsapp')->where('status', 'open')->value('id'),
-                    'external_id' => $wamid,
-                    'direction' => 'outbound',
-                    'sender_type' => 'system',
-                    'type' => 'template',
-                    'body' => $campaign->template->name,
-                    'payload' => $response,
-                    'status' => 'sent',
-                    'sent_at' => now(),
+            DB::transaction(function () use ($recipient, $campaign, $contact, $wamid, $response) {
+                $conversation = Conversation::query()->firstOrCreate(
+                    ['tenant_id' => $campaign->tenant_id, 'workspace_id' => $campaign->workspace_id, 'contact_id' => $contact->id, 'channel' => 'whatsapp', 'status' => 'open'],
+                    ['last_message_at' => now()]
+                );
+                $message = Message::create([
+                    'tenant_id' => $campaign->tenant_id, 'conversation_id' => $conversation->id,
+                    'external_id' => $wamid, 'direction' => 'outbound', 'sender_type' => 'system',
+                    'type' => 'template', 'body' => $campaign->template->name, 'payload' => $response,
+                    'status' => 'sent', 'sent_at' => now(),
                 ]);
-                $recipient->update(['message_id' => $message->id]);
+                $recipient->update(['status' => 'sent', 'external_id' => $wamid, 'sent_at' => now(), 'error' => null, 'message_id' => $message->id]);
+                $conversation->update(['last_message_at' => now()]);
             });
         } catch (Throwable $e) {
             $recipient->update(['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 60000)]);
