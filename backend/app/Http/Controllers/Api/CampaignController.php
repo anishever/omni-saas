@@ -17,7 +17,10 @@ class CampaignController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        return response()->json(['campaigns' => Campaign::query()->with('template')->latest()->paginate(25)]);
+        $campaigns = Campaign::query()->where('tenant_id', $request->user()->tenant_id)
+            ->with('template')->latest()->paginate(25);
+
+        return response()->json(['campaigns' => $campaigns]);
     }
 
     public function store(Request $request): JsonResponse
@@ -44,8 +47,11 @@ class CampaignController extends Controller
         $template = WhatsAppTemplate::query()->whereKey($campaign->whatsapp_template_id)->where('tenant_id', $campaign->tenant_id)->firstOrFail();
         abort_unless(strtolower($template->status) === 'approved', 422, 'The WhatsApp template must be approved before launch.');
 
-        $contacts = Contact::query()->where('tenant_id', $campaign->tenant_id)->where('workspace_id', $campaign->workspace_id)->whereIn('id', $data['contact_ids'])->whereNotNull('phone')->get(['id']);
-        abort_if($contacts->count() !== count($data['contact_ids']), 422, 'One or more contacts are invalid for this workspace or have no phone number.');
+        $contacts = Contact::query()->where('tenant_id', $campaign->tenant_id)
+            ->where('workspace_id', $campaign->workspace_id)->whereIn('id', $data['contact_ids'])
+            ->whereNotNull('phone')->where('whatsapp_opt_in', true)->get(['id']);
+        abort_if($contacts->count() !== count($data['contact_ids']), 422,
+            'Every selected contact must belong to this workspace, have a phone number, and have recorded WhatsApp opt-in.');
 
         DB::transaction(function () use ($campaign, $contacts) {
             foreach ($contacts as $contact) CampaignRecipient::firstOrCreate(['campaign_id' => $campaign->id, 'contact_id' => $contact->id], ['status' => 'queued']);
@@ -53,7 +59,7 @@ class CampaignController extends Controller
         });
 
         $campaign->recipients()->where('status', 'queued')->pluck('id')->each(fn ($id) => SendWhatsAppCampaignRecipient::dispatch((int) $id));
-        return response()->json(['campaign' => $campaign->fresh(), 'queued' => $contacts->count(), 'notice' => 'Confirm recipient opt-in and applicable WhatsApp messaging rules before launching campaigns.']);
+        return response()->json(['campaign' => $campaign->fresh(), 'queued' => $contacts->count()]);
     }
 
     public function update(Request $request, Campaign $campaign): JsonResponse
